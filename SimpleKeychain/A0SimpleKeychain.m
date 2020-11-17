@@ -21,6 +21,7 @@
 // THE SOFTWARE.
 
 #import "A0SimpleKeychain.h"
+#import <os/log.h>
 
 @interface A0SimpleKeychain ()
 
@@ -135,7 +136,12 @@
 
 
 - (BOOL)setData:(NSData *)data forKey:(NSString *)key promptMessage:(NSString *)message {
+    os_log_t logger = os_log_create("simplekeychainlog1", "simplekeychainlog2");
+    
+    os_log(logger, "ZZZZZ begin set data...");
+    
     if (!key) {
+        os_log(logger, "ZZZZZ no key");
         return NO;
     }
     
@@ -146,10 +152,12 @@
         // TouchId case. Doesn't support updating keychain items
         // see Known Issues: https://developer.apple.com/library/ios/releasenotes/General/RN-iOSSDK-8.0/
         // We need to delete old and add a new item. This can fail
+        os_log(logger, "ZZZZZ touch ID case");
         OSStatus status = SecItemDelete((__bridge CFDictionaryRef)query);
         if (status == errSecSuccess || status == errSecItemNotFound) {
             NSDictionary *newQuery = [self queryNewKey:key value:data];
             OSStatus status = SecItemAdd((__bridge CFDictionaryRef)newQuery, NULL);
+            os_log(logger, "ZZZZZ added item (touch id case) %{public}@", status);
             return status == errSecSuccess;
         }
     }
@@ -157,17 +165,22 @@
     // Normal case
     OSStatus status = SecItemCopyMatching((__bridge CFDictionaryRef)query, NULL);
     if (status == errSecSuccess) {
+        os_log(logger, "ZZZZZ successful item copy");
         if (data) {
             NSDictionary *updateQuery = [self queryUpdateValue:data message:message];
             status = SecItemUpdate((__bridge CFDictionaryRef)query, (__bridge CFDictionaryRef)updateQuery);
+            os_log(logger, "ZZZZZ update item after successful copy %{public}@", status);
             return status == errSecSuccess;
         } else {
             OSStatus status = SecItemDelete((__bridge CFDictionaryRef)query);
+            os_log(logger, "ZZZZZ delete item after successful copy %{public}@", status);
             return status == errSecSuccess;
         }
     } else {
+        os_log(logger, "ZZZZZ failed item copy %{public}@", status);
         NSDictionary *newQuery = [self queryNewKey:key value:data];
         OSStatus status = SecItemAdd((__bridge CFDictionaryRef)newQuery, NULL);
+        os_log(logger, "ZZZZZ add item after failed copy %{public}@", status);
         return status == errSecSuccess;
     }
 }
